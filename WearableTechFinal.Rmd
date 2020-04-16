@@ -1,0 +1,196 @@
+---
+title: "WearableTech"
+author: "Allyson Busch"
+date: "April 15, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Human Activity Recognition from Wearble Tech
+
+This project is based off data from GroupWare, which can be found at the following link:
+
+http://groupware.les.inf.puc-rio.br/har
+
+The data contains information from various users along with their demographic information and informaiton from when they are in different positions: sitting, sitting down, standing, standing up, and walking. The goal of this project is to build a prediction model that can use the data information to predict which state the user is in. This data would be useful for the application receiving the data to be able to categorize information and assign it a class.
+
+I start the project with importing the data.
+
+```{r data}
+data <- read.csv("dataset-har-PUC-Rio-ugulino.csv", sep = ';', dec = ",")
+```
+
+## Looking at the data
+
+First, I am looking at the dataset to see if it was imported correctly. I am using the head function which supplies the first few lines of code. I am looking to see that the headers appear and that the data points have decimals instead of commas. 
+
+```{r head}
+head(data)
+```
+
+## Splitting the dataset
+
+Before I begin any sort of EDA into the dataset, I want to split the data into a training and test set for the model creation later. I am choosing to split the data with 70% in the training set and 30% in the testing set. I hae set the seed to 1026 for reproducability. 
+
+```{r test, train}
+library(caret)
+set.seed(1026)
+
+trainIndex <- createDataPartition(data$class, p = .7, list = FALSE, times = 1)
+train <- data[trainIndex,]
+test <- data[-trainIndex,]
+```
+
+## Summary Statistics 
+
+Now that I have split the data, I am going to start to look at the training set to see what the data looks like. I am starting with the summary function to look at the data in a wide overview. It appears there are only four participants in the study, so the gender, age, height, weight, and BMI data points are not very useful as there are only four users. 
+
+``` {r summary}
+summary(train)
+```
+
+## Bar Charts
+
+These bar graphs are for further proving that the age and BMI scores are not changing as the class changes for each user. When thinking critically, there would be no correlation between age and if someone is standing, or weight and if someone is sitting, so these would likely not be useful in a predictive model.
+
+``` {r age bar}
+ggplot(data = train) + 
+  geom_bar(mapping = aes(x = age))
+```
+
+``` {r bmi bar}
+ggplot(data = train) + 
+  geom_bar(mapping = aes(x = body_mass_index))
+```
+
+## Boxplots of Variables
+
+The boxplot graphs are for the variables that we will be examining in the predictive clustering models. 
+
+``` {r box}
+plotx1 <- ggplot(data = data, mapping = aes(x = class, y = x1)) + 
+  geom_boxplot()
+
+ploty1 <- ggplot(data = data, mapping = aes(x = class, y = y1)) + 
+  geom_boxplot()
+
+plotz1 <- ggplot(data = data, mapping = aes(x = class, y = z1)) + 
+  geom_boxplot()
+
+plotx2 <- ggplot(data = data, mapping = aes(x = class, y = x2)) + 
+  geom_boxplot()
+
+ploty2 <- ggplot(data = data, mapping = aes(x = class, y = y2)) + 
+  geom_boxplot()
+
+plotz2 <- ggplot(data = data, mapping = aes(x = class, y = z2)) + 
+  geom_boxplot()
+
+plotx3 <- ggplot(data = data, mapping = aes(x = class, y = x3)) + 
+  geom_boxplot()
+
+ploty3 <- ggplot(data = data, mapping = aes(x = class, y = y3)) + 
+  geom_boxplot()
+
+plotz3 <- ggplot(data = data, mapping = aes(x = class, y = z3)) + 
+  geom_boxplot()
+
+require(gridExtra)
+grid.arrange(plotx1, plotx2, plotx3, ploty1, ploty2, ploty3, plotz1, plotz2, plotz3, ncol = 2)
+```
+
+## Histograms of Variables
+
+In addition to the boxplots above, it is interesting to look at these variables in terms of the class they belong to. It is clear in these histograms that the classes are clustered and that the variables are not randomly assigned to the classes. This can be useful in creating the clustering algorithm we will be using below. 
+
+``` {r hist x}
+histx1 <- ggplot(data = train, mapping = aes (x = x1, colour = class)) + 
+  geom_freqpoly(binwidth = 0.1)
+
+histx2 <- ggplot(data = train, mapping = aes (x = x2, colour = class)) + 
+  geom_freqpoly(binwidth = 0.1)
+
+histx3 <- ggplot(data = train, mapping = aes (x = x3, colour = class)) + 
+  geom_freqpoly(binwidth = 0.1)
+
+grid.arrange(histx1, histx2, histx3, ncol = 1)
+```
+
+``` {r hist y}
+histy1 <- ggplot(data = train, mapping = aes (x = y1, colour = class)) + 
+  geom_freqpoly(binwidth = 0.1)
+
+histy2 <- ggplot(data = train, mapping = aes (x = y2, colour = class)) + 
+  geom_freqpoly(binwidth = 0.1)
+
+histy3 <- ggplot(data = train, mapping = aes (x = y3, colour = class)) + 
+  geom_freqpoly(binwidth = 0.1)
+
+grid.arrange(histy1, histy2, histy3, ncol = 1)
+```
+
+
+``` {r hist z}
+histz1 <- ggplot(data = train, mapping = aes (x = z1, colour = class)) + 
+  geom_freqpoly(binwidth = 0.1)
+
+histz2 <- ggplot(data = train, mapping = aes (x = z2, colour = class)) + 
+  geom_freqpoly(binwidth = 0.1)
+
+histz3 <- ggplot(data = train, mapping = aes (x = z3, colour = class)) + 
+  geom_freqpoly(binwidth = 0.1)
+
+grid.arrange(histz1, histz2, histz3, ncol = 1)
+```
+
+## Feature Plots
+
+FInally, I wanted to look at the variables in comparison to each other broadly to see if there are trends between the classes, which there appears to be. 
+
+``` {r featureplot}
+featurePlot(x = train[,c("x1", "x2", "x3", "y1", "y2", "y3", "z1", "z2", "z3")],
+            y = train$class, 
+            plot="pairs")
+```
+
+## Model Creation
+
+I am starting with the rpart method of clustering with the variables: x1, x2, x3, x4, y1, y2, y3, y4, z1, z2, z3. I then applied this model to the testing set to see the accuracy of the model. 
+
+``` {r tree}
+library(caret)
+install.packages('e1071', dependencies=TRUE)
+modFit <- train(class ~ x1 + x2 + x3 + x4 + y1 + y2 + y3 + y4 + z1 + z2 + z3, method = "rpart", data = train)
+print(modFit$finalModel)
+```
+
+## Model 1 Results
+
+It appears the model is relatively good at classifying the classes with the variables given. There is some overlap, but the majority of cases were correctly sorted. 
+
+``` {r testing}
+pred <- predict(modFit, test); test$predRight <- pred==test$class
+table(pred,test$class)
+```
+
+## Random Forest Model
+
+The next model I used to sort the dataset was random forest method, once again using the same variables. 
+
+``` {r rf 1}
+modFit <- train(class ~ x1 + x2 + x3 + x4 + y1 + y2 + y3 + y4 + z1 + z2 + z3, method = "rf", data = train)
+print(modFit$finalModel)
+```
+
+## RF Results
+
+The results of the RF model when applied to the test dataset are as followed:
+
+```{r rf 2}
+pred <- predict(modFit, test); test$predRight <- pred==test$class
+table(pred,test$class)
+```
+
